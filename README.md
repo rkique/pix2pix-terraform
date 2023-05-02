@@ -1,6 +1,6 @@
 ## Installation instructions
 
-1. Run `conda env create --file environment.yml`
+1. Run `conda env create --file /config/environment.yml`
 2. Run `conda activate pix2pix-pytorch`
 
 # pix2pix-terraform
