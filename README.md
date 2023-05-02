@@ -12,13 +12,14 @@ The elevation data comes from the Shuttle Radar Topography Mission, an internati
 
 Although we initially planned on using satellite imagery from Earth Engine as well, creating cloudless image mosaics for large areas was time-consuming and difficult. There was too much flexibility that we didn't need with regards to time scales, regions, and different satellite missions. We ultimately used images from the 2020 [Sentinel-2 Cloudless](https://s2maps.eu/) Mosaic, licenced under CC BY-NC-SA 4.0. It has an amazing API that lets you download cloudless imagery for any geographic coordinates in a GET request, provided that they are 4096x4096 pixels or less. The scale was also set to be 200 meters per pixels and 256 x 256 outputs, which we retrieved regionally from:
 
-- The Bolivian Andes 
-- Southern California 
-- Italy
-- Nepal
-- Pacific Northwest
+- The Bolivian Andes (Bolivia) 
+- Sierras (Southern California)
+- The Mediterranean (Italy)
+- Himalayan Mountains (Nepal)
+- Cascade Mountains (Pacific Northwest)
 - Rhode Island, New York
 - Sichuan Province, China
+- 
 - [TODO] add other places and coordinates
   
 Both data sources use EPSG:4326, which considered the standard geographic coordinate system. However, simply specifying a region of equal latitude and longitude will not result in a square, because longitudinal lines converge as the latitude increases. To ensure that the areas were truly 51.2km by 51.2km, we adjusted the longitude by the Haversine formula.
