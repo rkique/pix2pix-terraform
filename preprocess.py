@@ -3,7 +3,6 @@ os.environ['KMP_DUPLICATE_LIB_OK']='True'
 
 import numpy as np
 import torch
-import pandas as pd
 from skimage import io, transform
 import matplotlib.pyplot as plt
 from torch.utils.data import Dataset, DataLoader

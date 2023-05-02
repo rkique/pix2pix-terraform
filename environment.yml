@@ -1,0 +1,7 @@
+name: pix2pix-pytorch
+dependencies:
+  - pytorch::pytorch
+  - torchvision
+  - scikit-image
+  - numpy
+  - matplotlib

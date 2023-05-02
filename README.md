@@ -1,3 +1,8 @@
+## Installation instructions
+
+1. Run `conda env create --file environment.yml`
+2. Run `conda activate pix2pix-pytorch`
+
 # pix2pix-terraform
 
 Our project implements the GAN architecture described in the Pix2pix paper for the task of “greening” extraterrestrial imagery to earth-like satellite imagery, accomplishing this through the usage of elevation data as label maps.
