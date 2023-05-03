@@ -7,22 +7,21 @@ from torchvision import transforms, utils
 from preprocess import GetDataset
 import random
 
-# dataset = GetDataset()
+dataset = GetDataset()
 
 
 OUTPUT_CHANNELS = 3
 
-def downsample(in_channels, out_channels, size, apply_batchnorm=True):
+def downsample(in_channels, out_channels, size, padding=1, apply_batchnorm=True):
     #3 in_channels, 3 out_channels, 4x4 size, 2 stride
-    conv = torch.nn.Conv2d(in_channels, out_channels, size, stride=2, padding=1, bias=False)
+    conv = torch.nn.Conv2d(in_channels, out_channels, size, stride=2, padding=padding, bias=False)
     torch.nn.init.normal(conv.weight, 0, 0.02)
 
     #expected 3 channels
-    batchnorm = torch.nn.BatchNorm2d(3)
+    batchnorm = torch.nn.BatchNorm2d(out_channels) 
     leakyrelu = torch.nn.LeakyReLU()
     
     def call(x):
-        print(x)
         x = conv(x)
         if apply_batchnorm:
             x = batchnorm(x)
@@ -31,18 +30,15 @@ def downsample(in_channels, out_channels, size, apply_batchnorm=True):
 
     return call
 
-test_down = downsample(3, 64, 4, apply_batchnorm=False)
-inp = torch.zeros((1,3,256,256))
-print("Test: ")
-print(test_down(inp).size())
 
-def upsample(filters, size, apply_dropout=False):
+
+def upsample(in_channels, out_channels, size, apply_dropout=False):
     #3 in_channels, 3 out_channels, 4x4 size, 2 stride
-    convT = torch.nn.ConvTranspose2d(filters, filters, size, stride=2, bias=False)
+    convT = torch.nn.ConvTranspose2d(in_channels, out_channels, size, stride=2, bias=False)
     torch.nn.init.normal(convT.weight, 0, 0.02)
 
-    #expected 3 channels
-    batchnorm = torch.nn.BatchNorm2d(3)
+    # No batchnorm if out_channel is of size 1
+    batchnorm = torch.nn.BatchNorm2d(out_channels) 
     relu = torch.nn.ReLU()
     dropout = torch.nn.Dropout()
 
@@ -68,27 +64,27 @@ class Generator(torch.nn.Module):
 
         # inputs = torch.tensor(np.zeros(3,256,256))
         self.down_stack = [
-            downsample(64, 4, apply_batchnorm=False),  # (batch_size, 128, 128, 64)
-            downsample(128, 4),  # (batch_size, 64, 64, 128)
-            downsample(256, 4),  # (batch_size, 32, 32, 256)
-            downsample(512, 4),  # (batch_size, 16, 16, 512)
-            downsample(512, 4),  # (batch_size, 8, 8, 512)
-            downsample(512, 4),  # (batch_size, 4, 4, 512)
-            downsample(512, 4),  # (batch_size, 2, 2, 512)
-            downsample(512, 4),  # (batch_size, 1, 1, 512)
+            downsample(3, 64, 4, apply_batchnorm=False),  # (batch_size, 128, 128, 64)
+            downsample(64, 128, 4),  # (batch_size, 64, 64, 128)
+            downsample(128, 256, 4),  # (batch_size, 32, 32, 256)
+            downsample(256, 512, 4),  # (batch_size, 16, 16, 512)
+            downsample(512, 512, 4),  # (batch_size, 8, 8, 512)
+            downsample(512, 512, 4),  # (batch_size, 4, 4, 512)
+            downsample(512, 512, 4),  # (batch_size, 2, 2, 512)
+            downsample(512, 512, 4),  # (batch_size, 1, 1, 512)
         ]
 
         self.up_stack = [
-            upsample(512, 4, apply_dropout=True),  # (batch_size, 2, 2, 1024)
-            upsample(512, 4, apply_dropout=True),  # (batch_size, 4, 4, 1024)
-            upsample(512, 4, apply_dropout=True),  # (batch_size, 8, 8, 1024)
-            upsample(512, 4),  # (batch_size, 16, 16, 1024)
-            upsample(256, 4),  # (batch_size, 32, 32, 512)
-            upsample(128, 4),  # (batch_size, 64, 64, 256)
-            upsample(64, 4),  # (batch_size, 128, 128, 128)
+            upsample(512, 512, 2, apply_dropout=True),  # (batch_size, 2, 2, 1024)
+            upsample(1024, 512, 2, apply_dropout=True),  # (batch_size, 4, 4, 1024)
+            upsample(1024, 512, 2, apply_dropout=True),  # (batch_size, 8, 8, 1024)
+            upsample(1024, 512, 2),  # (batch_size, 16, 16, 1024)
+            upsample(1024, 256, 2),  # (batch_size, 32, 32, 512)
+            upsample(512, 128, 2),  # (batch_size, 64, 64, 256)
+            upsample(256, 64, 2),  # (batch_size, 128, 128, 128)
         ]
 
-        self.last = torch.nn.ConvTranspose2d(3, 3, 4, stride=2, padding="same", bias=False)
+        self.last = torch.nn.ConvTranspose2d(128, 3, 2, stride=2, bias=False)
         self.tanh = torch.nn.Tanh()
 
     # torch.nn.init.normal(last.weight, 0, 0.02)
@@ -97,7 +93,8 @@ class Generator(torch.nn.Module):
         # Downsampling through the model
         skips = []
         for down in self.down_stack:
-            print(f"X with size: {x.size()}")
+            print(f"Downsample layer {len(skips)}")
+
             x = down(x)
             skips.append(x)
 
@@ -105,8 +102,10 @@ class Generator(torch.nn.Module):
 
         # Upsampling and establishing the skip connections
         for up, skip in zip(self.up_stack, skips):
+            print(f"Upsample layer")
             x = up(x)
-            x = torch.cat(x, skip)
+            # Concate skip with upsampled along channels dimension
+            x = torch.cat((x, skip), 1)
 
         x = self.last(x)
         x = self.tanh(x)
@@ -142,9 +141,9 @@ class Discriminator(torch.nn.Module):
     def __init__(self):
         super().__init__()
 
-        self.down1 = downsample(64, 4, False)
-        self.down2 = downsample(128, 4)
-        self.down3 = downsample(256, 4)
+        self.down1 = downsample(6, 64, 4, apply_batchnorm=False)
+        self.down2 = downsample(64, 128, 4)
+        self.down3 = downsample(128, 256, 4)
 
         self.zero_pad1 = torch.nn.ZeroPad2d(1)
         self.conv = torch.nn.Conv2d(256, 512, 4, stride=1, bias=False)
@@ -155,8 +154,10 @@ class Discriminator(torch.nn.Module):
         self.zero_pad2 = torch.nn.ZeroPad2d(1)
 
         self.last = torch.nn.Conv2d(512, 1, 4, stride=1, bias=False)
+        self.sigmoid = torch.nn.Sigmoid()
 
-    def forward(self, x):
+    def forward(self, inp, tar):
+        x = torch.cat((inp, tar), 1)
         x = self.down1(x)
         x = self.down2(x)
         x = self.down3(x)
@@ -170,6 +171,7 @@ class Discriminator(torch.nn.Module):
         x = self.zero_pad2(x)
 
         x = self.last(x)
+        x = self.sigmoid(x)
 
         return x
     
@@ -195,7 +197,11 @@ def generate_images(model, test_input, tar):
     prediction = model(test_input)
     plt.figure(figsize=(15, 15))
 
-    display_list = [test_input[0], tar[0], prediction[0]]
+    input_img = np.moveaxis(test_input[0].detach().numpy(), 0, 2)
+    ground_img = np.moveaxis(tar[0].detach().numpy(), 0, 2)
+    pred_img = np.moveaxis(prediction[0].detach().numpy(), 0, 2)
+
+    display_list = [input_img, ground_img, pred_img]
     title = ['Input Image', 'Ground Truth', 'Predicted Image']
 
     for i in range(3):
@@ -206,5 +212,80 @@ def generate_images(model, test_input, tar):
         plt.axis('off')
     plt.show()
 
+
+
+# Training
+def train_step(input_images, targets, batch_size=12):
+
+    num_imgs = len(input_images)
+    num_batches = int(num_imgs / batch_size)
+
+    total_gen_loss = total_gan_loss = total_l1_loss = total_disc_loss = total_seen = 0
+
+    for index, end in enumerate(range(batch_size, num_imgs+1, batch_size)):
+        start = end - batch_size
+
+        input_batch = input_images[start:end]
+        target_batch = targets[start:end]
+
+
+        gen_output = generator(input_batch)
+
+        disc_real_output = discriminator(input_batch, target_batch)
+        disc_generated_output = discriminator(input_batch, gen_output)
+
+        gen_loss, gan_loss, l1_loss = generator_loss(disc_generated_output, gen_output, target_batch)
+        disc_loss = discriminator_loss(disc_real_output, disc_generated_output)
+
+        discriminator_optimizer.zero_grad()
+        disc_loss.backward(retain_graph=True)
+        discriminator_optimizer.step()
+
+        generator_optimizer.zero_grad()
+        gen_loss.backward(retain_graph=True)
+        generator_optimizer.step()
+
+        total_gen_loss += gen_loss
+        total_gan_loss += gan_loss
+        total_l1_loss += l1_loss
+        total_disc_loss += disc_loss
+
+        avg_gen_loss = float(total_gen_loss / total_seen)
+        avg_gan_loss = float(total_gan_loss / total_seen)
+        avg_l1_loss = float(total_l1_loss / total_seen)
+        avg_disc_loss = float(total_disc_loss / total_seen)
+
+        print(f"\r[Valid {index+1}/{num_batches}]\t gen_loss={avg_gen_loss:.3f}\t disc_loss: {avg_disc_loss:.3f}", end='')
+        
+    return avg_gen_loss, avg_gan_loss, avg_l1_loss, avg_disc_loss
+
+def fit(train_ds, test_ds, epochs):
+    train_elevation_imgs, train_satellite_imgs = convert_ds_to_tensor(train_ds)
+    test_elevation_imgs, test_satellite_imgs = convert_ds_to_tensor(test_ds)
+
+    for epoch in range(epochs):
+        print(f"\nEpoch {epoch+1}/{epochs}")
+        print('-'*10)
+
+        train_step(train_elevation_imgs, train_satellite_imgs)
+        generate_images(generator, test_elevation_imgs, test_satellite_imgs)
+
+
+def convert_ds_to_tensor(ds):
+    elevation_imgs = []
+    satellite_imgs = []
+    for i in range(len(ds)):
+        elevation_imgs.append(ds[i]['elevation'])
+        satellite_imgs.append(ds[i]['satellite'])
+    
+    elevation_imgs = torch.stack(elevation_imgs)
+    satellite_imgs = torch.stack(satellite_imgs)
+
+    return elevation_imgs, satellite_imgs
+
 if __name__ == '__main__':
-    print('runnin')
+    print('<-----------------Runnin----------------->')
+    num_imgs = len(dataset)
+
+    fit(dataset, dataset, 5)
+
