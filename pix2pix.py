@@ -244,9 +244,6 @@ def train_step(input_images, targets, batch_size=12):
 
         print("Backward 1")
 
-        gen_output = generator(input_batch)
-
-        disc_real_output = discriminator(input_batch, target_batch)
         disc_generated_output = discriminator(input_batch, gen_output)
 
         gen_loss, gan_loss, l1_loss = generator_loss(disc_generated_output, gen_output, target_batch)
@@ -254,7 +251,7 @@ def train_step(input_images, targets, batch_size=12):
         print("Forward 2")
 
         generator_optimizer.zero_grad()
-        gen_loss.backward(retain_graph=True)
+        gen_loss.backward()
         generator_optimizer.step()
 
         print("Backward 2")
