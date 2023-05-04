@@ -277,8 +277,8 @@ def fit(train_ds, test_ds, epochs):
 
         train_step(train_elevation_imgs, train_satellite_imgs)
 
-        if epoch % 5 + 1 == 0:
-            generate_images(generator, test_elevation_imgs, test_satellite_imgs)
+        # if epoch % 5 + 1 == 0:
+        #     generate_images(generator, test_elevation_imgs, test_satellite_imgs)
 
 def convert_ds_to_tensor(ds):
     elevation_imgs = []
@@ -296,5 +296,8 @@ if __name__ == '__main__':
     print('<-----------------Runnin----------------->')
     elevation_imgs, satellite_imgs = convert_ds_to_tensor(dataset)
 
-    fit(dataset, dataset, 20)
+    fit(dataset, dataset, 500)
+
+    torch.save(generator.state_dict(), 'generator.pth')
+    torch.save(discriminator.state_dict(), 'discriminator.pth')
 
