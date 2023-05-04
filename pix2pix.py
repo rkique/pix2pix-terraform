@@ -93,6 +93,7 @@ class Generator(torch.nn.Module):
         # Downsampling through the model
         skips = []
         for down in self.down_stack:
+            x = x.to(torch.float32)
             x = down(x)
             skips.append(x)
 
@@ -101,8 +102,8 @@ class Generator(torch.nn.Module):
         # Upsampling and establishing the skip connections
         for up, skip in zip(self.up_stack, skips):
             x = up(x)
-            # Concate skip with upsampled along channels dimension
-            x = torch.cat((x, skip), 1)
+            # Concat skip with upsampled along channels dimension
+            x = torch.tensor(np.concatenate((x.detach().numpy(), skip.detach().numpy()), axis=1))
 
         x = self.last(x)
         x = self.tanh(x)
@@ -120,7 +121,7 @@ generator = Generator()
 
 LAMBDA = 10
 
-loss_object = torch.nn.BCELoss()
+loss_object = torch.nn.BCEWithLogitsLoss()
 
 def generator_loss(disc_generated_output, gen_output, target):
     gan_loss = loss_object(disc_generated_output, torch.ones_like(disc_generated_output))
@@ -151,7 +152,6 @@ class Discriminator(torch.nn.Module):
         self.zero_pad2 = torch.nn.ZeroPad2d(1)
 
         self.last = torch.nn.Conv2d(512, 1, 4, stride=1, bias=False)
-        self.sigmoid = torch.nn.Sigmoid()
 
     def forward(self, inp, tar):
         x = torch.cat((inp, tar), 1)
@@ -168,7 +168,6 @@ class Discriminator(torch.nn.Module):
         x = self.zero_pad2(x)
 
         x = self.last(x)
-        x = self.sigmoid(x)
 
         return x
     
@@ -227,45 +226,53 @@ def train_step(input_images, targets, batch_size=12):
         input_batch = input_images[start:end]
         target_batch = targets[start:end]        
 
-        with torch.autograd.set_detect_anomaly(True):
 
-            gen_output = generator(input_batch)
+        print("start batch")
+        gen_output = generator(input_batch)
 
-            disc_real_output = discriminator(input_batch, target_batch)
-            disc_generated_output = discriminator(input_batch, gen_output)
+        disc_real_output = discriminator(input_batch, target_batch)
+        disc_generated_output = discriminator(input_batch, gen_output)
 
-            gen_loss, gan_loss, l1_loss = generator_loss(disc_generated_output, gen_output, target_batch)
-            disc_loss = discriminator_loss(disc_real_output, disc_generated_output)
+        gen_loss, gan_loss, l1_loss = generator_loss(disc_generated_output, gen_output, target_batch)
+        disc_loss = discriminator_loss(disc_real_output, disc_generated_output)
 
-            discriminator_optimizer.zero_grad()
-            disc_loss.backward(retain_graph=True)
-            discriminator_optimizer.step()
+        print("Forward 1")
 
-            gen_output = generator(input_batch)
+        discriminator_optimizer.zero_grad()
+        disc_loss.backward(retain_graph=True)
+        discriminator_optimizer.step()
 
-            disc_real_output = discriminator(input_batch, target_batch)
-            disc_generated_output = discriminator(input_batch, gen_output)
+        print("Backward 1")
 
-            gen_loss, gan_loss, l1_loss = generator_loss(disc_generated_output, gen_output, target_batch)
+        gen_output = generator(input_batch)
 
-            generator_optimizer.zero_grad()
-            gen_loss.backward(retain_graph=True)
-            generator_optimizer.step()
+        disc_real_output = discriminator(input_batch, target_batch)
+        disc_generated_output = discriminator(input_batch, gen_output)
 
-            total_seen += batch_size
+        gen_loss, gan_loss, l1_loss = generator_loss(disc_generated_output, gen_output, target_batch)
 
-            total_gen_loss += gen_loss
-            total_gan_loss += gan_loss
-            total_l1_loss += l1_loss
-            total_disc_loss += disc_loss
+        print("Forward 2")
 
-            avg_gen_loss = float(total_gen_loss / total_seen)
-            avg_gan_loss = float(total_gan_loss / total_seen)
-            avg_l1_loss = float(total_l1_loss / total_seen)
-            avg_disc_loss = float(total_disc_loss / total_seen)
+        generator_optimizer.zero_grad()
+        gen_loss.backward(retain_graph=True)
+        generator_optimizer.step()
 
-            print(f"\r[Batch {index+1}/{num_batches}]\t gen_loss={avg_gen_loss:.3f}\t disc_loss: {avg_disc_loss:.3f}", end='')
-        
+        print("Backward 2")
+
+        total_seen += batch_size
+
+        total_gen_loss += gen_loss
+        total_gan_loss += gan_loss
+        total_l1_loss += l1_loss
+        total_disc_loss += disc_loss
+
+        avg_gen_loss = float(total_gen_loss / total_seen)
+        avg_gan_loss = float(total_gan_loss / total_seen)
+        avg_l1_loss = float(total_l1_loss / total_seen)
+        avg_disc_loss = float(total_disc_loss / total_seen)
+
+        print(f"\r[Batch {index+1}/{num_batches}]\t gen_loss={avg_gen_loss:.3f}\t disc_loss: {avg_disc_loss:.3f}", end='')
+    
     return avg_gen_loss, avg_gan_loss, avg_l1_loss, avg_disc_loss
 
 def fit(train_ds, test_ds, epochs):
@@ -296,8 +303,11 @@ if __name__ == '__main__':
     print('<-----------------Runnin----------------->')
     elevation_imgs, satellite_imgs = convert_ds_to_tensor(dataset)
 
-    fit(dataset, dataset, 500)
+    fit(dataset, dataset, 1)
 
     torch.save(generator.state_dict(), 'generator.pth')
     torch.save(discriminator.state_dict(), 'discriminator.pth')
+
+    elevation_imgs, satellite_imgs = convert_ds_to_tensor(dataset)
+    generate_images(generator, elevation_imgs, satellite_imgs)
 
