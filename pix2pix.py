@@ -93,8 +93,6 @@ class Generator(torch.nn.Module):
         # Downsampling through the model
         skips = []
         for down in self.down_stack:
-            print(f"Downsample layer {len(skips)}")
-
             x = down(x)
             skips.append(x)
 
@@ -102,7 +100,6 @@ class Generator(torch.nn.Module):
 
         # Upsampling and establishing the skip connections
         for up, skip in zip(self.up_stack, skips):
-            print(f"Upsample layer")
             x = up(x)
             # Concate skip with upsampled along channels dimension
             x = torch.cat((x, skip), 1)
@@ -121,7 +118,7 @@ generator = Generator()
 
 
 
-LAMBDA = 100
+LAMBDA = 10
 
 loss_object = torch.nn.BCELoss()
 
@@ -197,9 +194,11 @@ def generate_images(model, test_input, tar):
     prediction = model(test_input)
     plt.figure(figsize=(15, 15))
 
-    input_img = np.moveaxis(test_input[0].detach().numpy(), 0, 2)
-    ground_img = np.moveaxis(tar[0].detach().numpy(), 0, 2)
-    pred_img = np.moveaxis(prediction[0].detach().numpy(), 0, 2)
+    i = np.random.randint(0, test_input.shape[0])
+
+    input_img = np.moveaxis(test_input[i].detach().numpy(), 0, 2)
+    ground_img = np.moveaxis(tar[i].detach().numpy(), 0, 2)
+    pred_img = np.moveaxis(prediction[i].detach().numpy(), 0, 2)
 
     display_list = [input_img, ground_img, pred_img]
     title = ['Input Image', 'Ground Truth', 'Predicted Image']
@@ -226,36 +225,46 @@ def train_step(input_images, targets, batch_size=12):
         start = end - batch_size
 
         input_batch = input_images[start:end]
-        target_batch = targets[start:end]
+        target_batch = targets[start:end]        
 
+        with torch.autograd.set_detect_anomaly(True):
 
-        gen_output = generator(input_batch)
+            gen_output = generator(input_batch)
 
-        disc_real_output = discriminator(input_batch, target_batch)
-        disc_generated_output = discriminator(input_batch, gen_output)
+            disc_real_output = discriminator(input_batch, target_batch)
+            disc_generated_output = discriminator(input_batch, gen_output)
 
-        gen_loss, gan_loss, l1_loss = generator_loss(disc_generated_output, gen_output, target_batch)
-        disc_loss = discriminator_loss(disc_real_output, disc_generated_output)
+            gen_loss, gan_loss, l1_loss = generator_loss(disc_generated_output, gen_output, target_batch)
+            disc_loss = discriminator_loss(disc_real_output, disc_generated_output)
 
-        discriminator_optimizer.zero_grad()
-        disc_loss.backward(retain_graph=True)
-        discriminator_optimizer.step()
+            discriminator_optimizer.zero_grad()
+            disc_loss.backward(retain_graph=True)
+            discriminator_optimizer.step()
 
-        generator_optimizer.zero_grad()
-        gen_loss.backward(retain_graph=True)
-        generator_optimizer.step()
+            gen_output = generator(input_batch)
 
-        total_gen_loss += gen_loss
-        total_gan_loss += gan_loss
-        total_l1_loss += l1_loss
-        total_disc_loss += disc_loss
+            disc_real_output = discriminator(input_batch, target_batch)
+            disc_generated_output = discriminator(input_batch, gen_output)
 
-        avg_gen_loss = float(total_gen_loss / total_seen)
-        avg_gan_loss = float(total_gan_loss / total_seen)
-        avg_l1_loss = float(total_l1_loss / total_seen)
-        avg_disc_loss = float(total_disc_loss / total_seen)
+            gen_loss, gan_loss, l1_loss = generator_loss(disc_generated_output, gen_output, target_batch)
 
-        print(f"\r[Valid {index+1}/{num_batches}]\t gen_loss={avg_gen_loss:.3f}\t disc_loss: {avg_disc_loss:.3f}", end='')
+            generator_optimizer.zero_grad()
+            gen_loss.backward(retain_graph=True)
+            generator_optimizer.step()
+
+            total_seen += batch_size
+
+            total_gen_loss += gen_loss
+            total_gan_loss += gan_loss
+            total_l1_loss += l1_loss
+            total_disc_loss += disc_loss
+
+            avg_gen_loss = float(total_gen_loss / total_seen)
+            avg_gan_loss = float(total_gan_loss / total_seen)
+            avg_l1_loss = float(total_l1_loss / total_seen)
+            avg_disc_loss = float(total_disc_loss / total_seen)
+
+            print(f"\r[Batch {index+1}/{num_batches}]\t gen_loss={avg_gen_loss:.3f}\t disc_loss: {avg_disc_loss:.3f}", end='')
         
     return avg_gen_loss, avg_gan_loss, avg_l1_loss, avg_disc_loss
 
@@ -265,11 +274,11 @@ def fit(train_ds, test_ds, epochs):
 
     for epoch in range(epochs):
         print(f"\nEpoch {epoch+1}/{epochs}")
-        print('-'*10)
 
         train_step(train_elevation_imgs, train_satellite_imgs)
-        generate_images(generator, test_elevation_imgs, test_satellite_imgs)
 
+        if epoch % 5 + 1 == 0:
+            generate_images(generator, test_elevation_imgs, test_satellite_imgs)
 
 def convert_ds_to_tensor(ds):
     elevation_imgs = []
@@ -285,7 +294,7 @@ def convert_ds_to_tensor(ds):
 
 if __name__ == '__main__':
     print('<-----------------Runnin----------------->')
-    num_imgs = len(dataset)
+    elevation_imgs, satellite_imgs = convert_ds_to_tensor(dataset)
 
-    fit(dataset, dataset, 5)
+    fit(dataset, dataset, 20)
 
