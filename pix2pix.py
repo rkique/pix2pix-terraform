@@ -276,9 +276,9 @@ def fit(train_ds, test_ds, epochs):
         print(f"\nEpoch {epoch+1}/{epochs}")
 
         train_step(train_elevation_imgs, train_satellite_imgs)
-
-        # if epoch % 5 + 1 == 0:
-        #     generate_images(generator, test_elevation_imgs, test_satellite_imgs)
+        generate_images(generator, test_elevation_imgs, test_satellite_imgs)
+        if epoch % 5 + 1 == 0:
+            generate_images(generator, test_elevation_imgs, test_satellite_imgs)
 
 def convert_ds_to_tensor(ds):
     elevation_imgs = []
