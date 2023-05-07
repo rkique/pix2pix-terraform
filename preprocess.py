@@ -51,6 +51,7 @@ def transform(sample):
     transformation = transforms.Compose(
         [transforms.Resize(286), 
         transforms.RandomCrop(256)])
+    
     flip = random.choice([transforms.RandomHorizontalFlip(0), transforms.RandomHorizontalFlip(1)])
 
     elevation_img, satellite_img = sample['elevation'], sample['satellite']
@@ -59,12 +60,19 @@ def transform(sample):
     elevation_img = transformation(elevation_img)
     elevation_img = flip(elevation_img)
 
-    
     satellite_img = transforms.ToTensor()(satellite_img)
     satellite_img = transformation(satellite_img)
     satellite_img = flip(satellite_img)
-    
+
+    # plt.subplot(1, 2, 1)
+    # plt.imshow(np.transpose(elevation_img, (1,2,0)))
+    # plt.subplot(1, 2, 2)
+    # plt.imshow(np.transpose(satellite_img, (1,2,0)))
+    # # Getting the pixel values in the [0, 1] range to plot.
+    # plt.axis('off')
+    # plt.show()
+
     return {'elevation': elevation_img, 'satellite': satellite_img}
 
 def GetDataset():
-    return SatelliteElevationDataset(["data/CALI/", "data/ANDES/"], [12, 12], transform=transform)
+    return SatelliteElevationDataset(["data/CALI/"], [12], transform=transform)

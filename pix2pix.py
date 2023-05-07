@@ -18,13 +18,13 @@ def downsample(in_channels, out_channels, size, padding=1, apply_batchnorm=True)
     torch.nn.init.normal(conv.weight, 0, 0.02)
 
     #expected 3 channels
-    batchnorm = torch.nn.BatchNorm2d(out_channels) 
+    #batchnorm = torch.nn.BatchNorm2d(out_channels) 
     leakyrelu = torch.nn.LeakyReLU()
     
     def call(x):
         x = conv(x)
-        if apply_batchnorm:
-            x = batchnorm(x)
+        #if apply_batchnorm:
+        #    x = batchnorm(x)
         x = leakyrelu(x)
         return x
 
@@ -44,7 +44,7 @@ def upsample(in_channels, out_channels, size, apply_dropout=False):
 
     def call(x):
         x = convT(x)
-        x = batchnorm(x)
+        #x = batchnorm(x)
         if apply_dropout:
             x = dropout(x)
         x = relu(x)
@@ -101,6 +101,7 @@ class Generator(torch.nn.Module):
 
         # Upsampling and establishing the skip connections
         for up, skip in zip(self.up_stack, skips):
+            x = x.to(torch.float32)
             x = up(x)
             # Concat skip with upsampled along channels dimension
             x = torch.tensor(np.concatenate((x.detach().numpy(), skip.detach().numpy()), axis=1))
@@ -155,6 +156,7 @@ class Discriminator(torch.nn.Module):
 
     def forward(self, inp, tar):
         x = torch.cat((inp, tar), 1)
+        x = x.to(torch.float32)
         x = self.down1(x)
         x = self.down2(x)
         x = self.down3(x)
@@ -162,7 +164,7 @@ class Discriminator(torch.nn.Module):
         x = self.zero_pad1(x)
         x = self.conv(x)
 
-        x = self.batchnorm(x)
+        #x = self.batchnorm(x)
         x = self.leaky_relu(x)
 
         x = self.zero_pad2(x)
@@ -211,9 +213,8 @@ def generate_images(model, test_input, tar):
     plt.show()
 
 
-
 # Training
-def train_step(input_images, targets, batch_size=12):
+def train_step(input_images, targets, batch_size=1):
 
     num_imgs = len(input_images)
     num_batches = int(num_imgs / batch_size)
@@ -226,7 +227,6 @@ def train_step(input_images, targets, batch_size=12):
         input_batch = input_images[start:end]
         target_batch = targets[start:end]        
 
-
         print("start batch")
         gen_output = generator(input_batch)
 
@@ -236,25 +236,20 @@ def train_step(input_images, targets, batch_size=12):
         gen_loss, gan_loss, l1_loss = generator_loss(disc_generated_output, gen_output, target_batch)
         disc_loss = discriminator_loss(disc_real_output, disc_generated_output)
 
-        print("Forward 1")
-
+        for param in discriminator.parameters():
+            param.requires_grad = True
         discriminator_optimizer.zero_grad()
         disc_loss.backward(retain_graph=True)
         discriminator_optimizer.step()
 
-        print("Backward 1")
-
         disc_generated_output = discriminator(input_batch, gen_output)
-
         gen_loss, gan_loss, l1_loss = generator_loss(disc_generated_output, gen_output, target_batch)
 
-        print("Forward 2")
-
+        for param in discriminator.parameters():
+            param.requires_grad = False
         generator_optimizer.zero_grad()
         gen_loss.backward()
         generator_optimizer.step()
-
-        print("Backward 2")
 
         total_seen += batch_size
 
@@ -276,13 +271,7 @@ def fit(train_ds, test_ds, epochs):
     train_elevation_imgs, train_satellite_imgs = convert_ds_to_tensor(train_ds)
     test_elevation_imgs, test_satellite_imgs = convert_ds_to_tensor(test_ds)
 
-    for epoch in range(epochs):
-        print(f"\nEpoch {epoch+1}/{epochs}")
-
-        train_step(train_elevation_imgs, train_satellite_imgs)
-        generate_images(generator, test_elevation_imgs, test_satellite_imgs)
-        if epoch % 5 + 1 == 0:
-            generate_images(generator, test_elevation_imgs, test_satellite_imgs)
+    train_step(train_elevation_imgs, train_satellite_imgs)
 
 def convert_ds_to_tensor(ds):
     elevation_imgs = []
