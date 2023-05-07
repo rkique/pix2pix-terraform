@@ -40,9 +40,10 @@ class SatelliteElevationDataset(Dataset):
         satellite_img_name = self.satellite_imgs[idx]
         elevation_img = io.imread(elevation_img_name)
         satellite_img = io.imread(satellite_img_name)
+
         sample = {'elevation': elevation_img, 'satellite': satellite_img}
         if self.transform:
-            sample = self.transform(sample)
+           sample = self.transform(sample)
         return sample
 
 # preprocessing: apply random jittering and mirroring to preprocess the training set
@@ -52,17 +53,17 @@ def transform(sample):
         [transforms.Resize(286), 
         transforms.RandomCrop(256)])
     
-    flip = random.choice([transforms.RandomHorizontalFlip(0), transforms.RandomHorizontalFlip(1)])
+    #flip = transforms.RandomHorizontalFlip(np.random.randint(0, 2))
 
     elevation_img, satellite_img = sample['elevation'], sample['satellite']
 
     elevation_img = transforms.ToTensor()(elevation_img)
     elevation_img = transformation(elevation_img)
-    elevation_img = flip(elevation_img)
+    #elevation_img = flip(elevation_img)
 
     satellite_img = transforms.ToTensor()(satellite_img)
     satellite_img = transformation(satellite_img)
-    satellite_img = flip(satellite_img)
+    #satellite_img = flip(satellite_img)
 
     # plt.subplot(1, 2, 1)
     # plt.imshow(np.transpose(elevation_img, (1,2,0)))
@@ -75,4 +76,4 @@ def transform(sample):
     return {'elevation': elevation_img, 'satellite': satellite_img}
 
 def GetDataset():
-    return SatelliteElevationDataset(["data/CALI/"], [12], transform=transform)
+    return SatelliteElevationDataset(["data/NEPAL/"], [15], transform=transform)
