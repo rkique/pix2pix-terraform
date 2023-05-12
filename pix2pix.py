@@ -118,9 +118,7 @@ generator = Generator()
 # inputs = torch.tensor(np.zeros((3,256,256)))
 # plt.imshow(generator(inputs)[0])
 
-
-
-LAMBDA = 10
+LAMBDA = 100
 
 loss_object = torch.nn.BCEWithLogitsLoss()
 
@@ -187,8 +185,8 @@ def discriminator_loss(disc_real_output, disc_generated_output):
 
 
 # Optimizers
-generator_optimizer = torch.optim.Adam(generator.parameters(), lr=2e-4, betas=(0.5, 0.999))
-discriminator_optimizer = torch.optim.Adam(discriminator.parameters(), lr=2e-4, betas=(0.5, 0.999))
+generator_optimizer = torch.optim.Adam(generator.parameters(), lr=2e-2, betas=(0.5, 0.999))
+discriminator_optimizer = torch.optim.Adam(discriminator.parameters(), lr=2e-3, betas=(0.5, 0.999))
 
 # Generate images
 def generate_images(model, test_input, tar):
@@ -208,7 +206,7 @@ def generate_images(model, test_input, tar):
         plt.subplot(1, 3, i+1)
         plt.title(title[i])
         # Getting the pixel values in the [0, 1] range to plot.
-        plt.imshow(display_list[i] * 0.5 + 0.5)
+        plt.imshow(display_list[i])
         plt.axis('off')
     plt.show()
 
@@ -227,7 +225,6 @@ def train_step(input_images, targets, batch_size=1):
         input_batch = input_images[start:end]
         target_batch = targets[start:end]        
 
-        print("start batch")
         gen_output = generator(input_batch)
 
         disc_real_output = discriminator(input_batch, target_batch)
@@ -267,11 +264,13 @@ def train_step(input_images, targets, batch_size=1):
     
     return avg_gen_loss, avg_gan_loss, avg_l1_loss, avg_disc_loss
 
-def fit(train_ds, test_ds, epochs):
-    train_elevation_imgs, train_satellite_imgs = convert_ds_to_tensor(train_ds)
-    test_elevation_imgs, test_satellite_imgs = convert_ds_to_tensor(test_ds)
+def fit(epochs):
+    train_elevation_imgs, train_satellite_imgs = convert_ds_to_tensor(dataset)
 
-    train_step(train_elevation_imgs, train_satellite_imgs)
+    for epoch in range(epochs):
+        print(f"\nEpoch {epoch+1}/{epochs}")
+        train_step(train_elevation_imgs, train_satellite_imgs)
+
 
 def convert_ds_to_tensor(ds):
     elevation_imgs = []
@@ -287,13 +286,20 @@ def convert_ds_to_tensor(ds):
 
 if __name__ == '__main__':
     print('<-----------------Runnin----------------->')
+    dataset = GetDataset()
     elevation_imgs, satellite_imgs = convert_ds_to_tensor(dataset)
+    
+    # generate_images(generator, elevation_imgs, satellite_imgs)
+    # generate_images(generator, elevation_imgs, satellite_imgs)
 
-    fit(dataset, dataset, 1)
+    fit(epochs=10)
 
-    torch.save(generator.state_dict(), 'generator.pth')
-    torch.save(discriminator.state_dict(), 'discriminator.pth')
+    # torch.save(generator.state_dict(), 'generator.pth')
+    # torch.save(discriminator.state_dict(), 'discriminator.pth')
 
-    elevation_imgs, satellite_imgs = convert_ds_to_tensor(dataset)
     generate_images(generator, elevation_imgs, satellite_imgs)
+    generate_images(generator, elevation_imgs, satellite_imgs)
+    generate_images(generator, elevation_imgs, satellite_imgs)
+
+
 

@@ -76,4 +76,4 @@ def transform(sample):
     return {'elevation': elevation_img, 'satellite': satellite_img}
 
 def GetDataset():
-    return SatelliteElevationDataset(["data/NEPAL/"], [15], transform=transform)
+    return SatelliteElevationDataset(["data/ANDES/","data/CALI/","data/ITALY/","data/NEPAL/","data/NW/","data/RI/","data/SICHUAN/","data/TANZANIA/"], [12, 12, 12, 12, 12, 12, 12, 12], transform=transform)
